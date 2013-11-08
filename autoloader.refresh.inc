@@ -147,11 +147,18 @@ function autoloader_refresh_real($register = false, $log = null) {
   // Generate working autoload file without composer using a stupid yet
   // simple SPL autoloader.
   $loaderpath = drupal_get_path('module', 'autoloader') . '/resources/SplClassLoader.php';
-  $data = "<?php if (!include_once(DRUPAL_ROOT . '/$loaderpath')) {\n return false;\n}";
+  $data = "<?php\n\nif (!include_once(DRUPAL_ROOT . '/$loaderpath')) {\n return false;\n}";
 
   if (!empty($map['psr-0'])) {
     foreach ($map['psr-0'] as $namespace => $path) {
-      $data .= "\n\n\$loader = new SplClassLoader('$namespace', __DIR__ . '/../$path');\n\$loader->register();";
+      $data .= "\n\n\$loader = new SplClassLoader('$namespace', __DIR__ . '/../$path');";
+      // Tiny fix that will ensure the prefix separator for PEAR style
+      // libraries if they are declared the same way as it is documented
+      // at http://getcomposer.org/doc/04-schema.md#autoload
+      if ('_' === $namespace[strlen($namespace) - 1]) {
+        $data .= "\n\$loader->setNamespaceSeparator('_');";
+      }
+      $data .= "\n\$loader->register();";
     }
   }
 
