@@ -1,0 +1,84 @@
+<?php
+
+/**
+ * @file
+ * Autoloader module.
+ */
+
+/**
+ * Where to store generated files path.
+ */
+define('AUTOLOADER_FILE_PATH', 'autoloader_file_path');
+
+/**
+ * Where to store generated files path.
+ */
+define('AUTOLOADER_COMPOSER_ENABLE', 'autoloader_composer_enable');
+
+/**
+ * Implements hook_boot().
+ */
+function autoloader_boot() {
+  // Only proceed if the user never added the autoload statement
+  // into the settings.php file.
+  if (!class_exists('Autoloader\Test')) {
+    $file = autoloader_file_path() . '/vendor/autoload.php';
+    if (!@include_once $file) {
+      // First fail means we need to create the file.
+      if (autoloader_refresh(true)) {
+        // A second fail here would probably be fatal for other
+        // modules which need their classes: but we cannot properly
+        // fallback without a huge performance impact: don't do
+        // anything there.
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_modules_enabled().
+ */
+function autoloader_modules_enabled($modules) {
+  autoloader_refresh();
+}
+
+/**
+ * Implements hook_modules_disabled().
+ */
+function autoloader_module_disabled($modules) {
+  autoloader_refresh();
+}
+
+/**
+ * Implements hook_install().
+ */
+function autoloader_install() {
+  autoloader_refresh();
+}
+
+/**
+ * Where to store files.
+ */
+function autoloader_file_path() {
+  // Generate a composer.json file in order for composer to be able
+  // to manage autoload. For this we need a place where to put it.
+  // Alongside the settings.php seems a good start.
+  $where = variable_get(AUTOLOADER_FILE_PATH, conf_path());
+  if (!is_writable($where)) {
+    // This sounds bad but it works.
+    $where = file_directory_temp();
+  }
+  return $where;
+}
+
+/**
+ * Find modules and their namespaces: use composer autoloader if available
+ * or use a simple SPL autoloader implementation.
+ *
+ * @param boolean $register
+ *   If set to true a fallback loader will be registered along the way.
+ */
+function autoloader_refresh($register = false) {
+  require_once __DIR__ . '/autoloader.refresh.inc';
+  $path = autoloader_refresh_real($register);
+}

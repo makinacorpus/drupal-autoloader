@@ -1,0 +1,192 @@
+<?php
+
+/**
+ * Pretty print JSON.
+ */
+if (!defined('JSON_PRETTY_PRINT')) {
+  define('JSON_PRETTY_PRINT', 0);
+}
+
+/**
+ * Don't escape '/' in JSON.
+ */
+if (!defined('JSON_UNESCAPED_SLASHES')) {
+  define('JSON_UNESCAPED_SLASHES', 0);
+}
+
+/**
+ * Load module file if necessary.
+ */
+if (!defined('AUTOLOADER_COMPOSER_ENABLE')) {
+  require_once __DIR__ . '/autoloader.module';
+}
+
+/**
+ * @see autoloader_refresh().
+ */
+function autoloader_refresh_real($register = false, $log = null) {
+
+  /***************************************************************************
+   *
+   * Prepare some bits of environment.
+   *
+   ***************************************************************************/
+
+  if (null === $log || !is_callable($log)) {
+    $log = function ($message, $args = array()) {
+      watchdog('autoloader', $message, $args, WATCHDOG_ERROR);
+    };
+  }
+
+  if ($register) {
+    require_once __DIR__ . '/resources/SplClassLoader.php';
+  }
+
+  /***************************************************************************
+   *
+   * Ensure file path.
+   *
+   ***************************************************************************/
+
+  $where  = autoloader_file_path();
+  $prefix = str_repeat('../', substr_count($where, '/') + 1);
+
+  /***************************************************************************
+   *
+   * Find Drupal modules custom namespaces.
+   *
+   ***************************************************************************/
+
+  $map = array();
+
+  foreach (autoloader_find_modules() as $path => $methods) {
+    foreach ($methods as $method => $namespaces) {
+      foreach ($namespaces as $namespace => $relpath) {
+        $map[$method][$namespace] = $prefix . $path . '/' . $relpath;
+
+        if ($register) {
+          $loader = new SplClassLoader(
+            $namespace,
+            DRUPAL_ROOT . '/' . $path . '/' . $relpath
+          );
+          $loader->register();
+        }
+      }
+    }
+  }
+
+  /***************************************************************************
+   *
+   * Merge composer dependencies.
+   * @todo This probably needs to be a bit more robust.
+   *
+   ***************************************************************************/
+
+  $dependencies = array();
+
+  if (variable_get(AUTOLOADER_COMPOSER_ENABLE, true)) {
+    foreach (autoloader_find_composer_dependencies() as $file) {
+
+      if (!$data = file_get_contents($file)) {
+        call_user_func($log, "Could not read file @file", array('@file' => $file));
+        continue;
+      }
+
+      if (!$data = json_decode($data, true)) {
+        call_user_func($log, "Invalid JSON in file @file", array('@file' => $file));
+        continue;
+      }
+
+      if (empty($data['require']) || !is_array($data['require'])) {
+        call_user_func($log, "No dependencies found in file @file", array('@file' => $file));
+        continue;
+      }
+
+      $dependencies += $data['require'];
+    }
+  }
+
+  /***************************************************************************
+   *
+   * Build composer file.
+   *
+   ***************************************************************************/
+
+  $composer = array(
+    'name'        => 'drupal-site/' . variable_get('install_profile', "custom"),
+    'type'        => 'drupal-site',
+    'description' => sprintf("Automatically generated file for site '%s'.", variable_get('site_name', "Drupal")),
+    'autoload'    => $map,
+  );
+
+  if (!empty($dependencies)) {
+    $composer['require'] = $dependencies;
+  }
+
+  $data = json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+  if (!file_put_contents($where . '/composer.json', $data)) {
+    call_user_func($log, "Could not write file @file", array('@file' => $where . '/composer.json'));
+  }
+
+  /***************************************************************************
+   *
+   * Build custom temporary autoload.php file.
+   *
+   ***************************************************************************/
+
+  $vendor = $where . '/vendor';
+  if (!is_dir($vendor)) {
+    mkdir($vendor);
+  }
+  if (!is_writable($vendor)) {
+    call_user_func($log, "Directory is not writable @dir", array('@dir' => $vendor));
+    return false;
+  }
+
+  // Generate working autoload file without composer using a stupid yet
+  // simple SPL autoloader.
+  $loaderpath = drupal_get_path('module', 'autoloader') . '/resources/SplClassLoader.php';
+  $data = "<?php if (!include_once(DRUPAL_ROOT . '/$loaderpath')) {\n return false;\n}";
+
+  if (!empty($map['psr-0'])) {
+    foreach ($map['psr-0'] as $namespace => $path) {
+      $data .= "\n\n\$loader = new SplClassLoader('$namespace', __DIR__ . '/../$path');\n\$loader->register();";
+    }
+  }
+
+  $autoloadfile = $vendor . '/autoload.php';
+  if (!file_put_contents($autoloadfile, $data)) {
+    call_user_func($log, "Could not write file @file", array('@file' => $autoloadfile));
+    return false;
+  }
+
+  return $autoloadfile;
+}
+
+/**
+ * Find modules using the "autoload" info variable.
+ */
+function autoloader_find_modules() {
+  $ret = array();
+  foreach (system_list('module_enabled') as $info) {
+    if (!empty($info->info['autoload'])) {
+      $ret[dirname($info->filename)] = $info->info['autoload'];
+    }
+  }
+  return $ret;
+}
+
+/**
+ * Find modules having a composer.json file describing dependencies.
+ */
+function autoloader_find_composer_dependencies() {
+  $ret = array();
+  foreach (system_list('module_enabled') as $module => $info) {
+    $path = dirname($info->filename) . '/composer.json';
+    if (file_exists($path)) {
+      $ret[$module] = $path;
+    }
+  }
+  return $ret;
+}

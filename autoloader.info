@@ -1,0 +1,5 @@
+name = Composer
+description = Manage your dependencies using composer.
+core = 7.x
+php = 5.3.3
+autoload[psr-0][Autoloader] = lib
