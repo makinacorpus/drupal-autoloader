@@ -30,4 +30,5 @@ function drush_autoloader_build_autoload() {
     return 1;
   }
   drush_print(dt("File wrote to @file", array('@file' => $path)));
+  drush_print(dt("You can now run: @composer", array('@composer' => "\n    cd " . dirname($path) . "\n    php composer.phar dump-autoload --optimize")));
 }
