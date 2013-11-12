@@ -146,6 +146,9 @@ function autoloader_refresh_real($register = false, $log = null) {
 
   // Generate working autoload file without composer using a stupid yet
   // simple SPL autoloader.
+  if (!function_exists('drupal_get_path')) {
+    require_once DRUPAL_ROOT . '/common.inc';
+  }
   $loaderpath = drupal_get_path('module', 'autoloader') . '/resources/SplClassLoader.php';
   $data = "<?php\n\nif (!include_once(DRUPAL_ROOT . '/$loaderpath')) {\n return false;\n}";
 
