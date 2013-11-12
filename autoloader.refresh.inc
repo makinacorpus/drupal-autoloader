@@ -164,6 +164,7 @@ function autoloader_refresh_real($register = false, $log = null) {
       $data .= "\n\$loader->register();";
     }
   }
+  $data .= "\n";
 
   $autoloadfile = $vendor . '/autoload.php';
   if (!file_put_contents($autoloadfile, $data)) {
