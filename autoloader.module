@@ -39,21 +39,21 @@ function autoloader_boot() {
  * Implements hook_modules_enabled().
  */
 function autoloader_modules_enabled($modules) {
-  autoloader_refresh();
+  autoloader_refresh(true);
 }
 
 /**
  * Implements hook_modules_disabled().
  */
 function autoloader_module_disabled($modules) {
-  autoloader_refresh();
+  autoloader_refresh(true);
 }
 
 /**
  * Implements hook_install().
  */
 function autoloader_install() {
-  autoloader_refresh();
+  autoloader_refresh(true);
 }
 
 /**
