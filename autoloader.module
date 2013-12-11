@@ -35,6 +35,12 @@ function autoloader_boot() {
   }
 }
 
+// When using Drush the hook_boot() does not seem to be run we
+// therefore need to emulate it at another point in runtime.
+if (function_exists('drush_print')) {
+  autoloader_boot();
+}
+
 /**
  * Implements hook_modules_enabled().
  */
