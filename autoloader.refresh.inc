@@ -22,6 +22,27 @@ if (!defined('AUTOLOADER_COMPOSER_ENABLE')) {
 }
 
 /**
+ * Build a classmap for loading core classes.
+ */
+function autoloader_refresh_core_loader() {
+
+  $map = Database::getConnection('default', 'default')->query("SELECT name, filename FROM {registry}")->fetchAllKeyed();
+
+  if (empty($map)) {
+    return '';
+  }
+
+  $data  = "\n\$__autoloaderCoreMap = " . var_export($map, true) . ";\n";
+  $data .= "\nspl_autoload_register(function (\$className) use (\$__autoloaderCoreMap) {";
+  $data .= "\n  if (isset(\$__autoloaderCoreMap[\$className])) {";
+  $data .= "\n    return @include_once \$__autoloaderCoreMap[\$className];";
+  $data .= "\n  }";
+  $data .= "\n}, null, true);\n";
+
+  return $data;
+}
+
+/**
  * @see autoloader_refresh().
  */
 function autoloader_refresh_real($register = false, $log = null) {
@@ -165,6 +186,11 @@ function autoloader_refresh_real($register = false, $log = null) {
     }
   }
   $data .= "\n";
+
+  // Generate a classmap for core if necessary.
+  if (variable_get('autoloader_core_cache', true)) {
+    $data .= autoloader_refresh_core_loader();
+  }
 
   $autoloadfile = $vendor . '/autoload.php';
   if (!file_put_contents($autoloadfile, $data)) {
