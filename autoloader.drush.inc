@@ -12,7 +12,7 @@ function autoloader_drush_command() {
   return array(
     'build-autoload' => array(
       'description' => '(Re)build vendor/autoload.php and composer.json files.',
-      'bootstrap' => DRUSH_BOOTSTRAP_FULL,
+      'bootstrap' => DRUSH_BOOTSTRAP_DRUPAL_FULL,
     ),
   );
 }
