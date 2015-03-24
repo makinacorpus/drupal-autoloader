@@ -32,7 +32,11 @@ function autoloader_refresh_core_loader() {
     return '';
   }
 
-  $data  = "\n\$__autoloaderCoreMap = " . var_export($map, true) . ";\n";
+  $data  = "\n\$__autoloaderCoreMap = array(\n";
+  foreach ($map as $symbol => $path) {
+    $data .= "    '$symbol' => DRUPAL_ROOT . '/$path',\n";
+  }
+  $data .= "\n);\n";
   $data .= "\nspl_autoload_register(function (\$className) use (\$__autoloaderCoreMap) {";
   $data .= "\n  if (isset(\$__autoloaderCoreMap[\$className])) {";
   $data .= "\n    return @include_once \$__autoloaderCoreMap[\$className];";
@@ -79,11 +83,13 @@ function autoloader_refresh_real($register = false, $log = null) {
    ***************************************************************************/
 
   $map = array();
+  $cmap = array();
 
   foreach (autoloader_find_modules() as $path => $methods) {
     foreach ($methods as $method => $namespaces) {
       foreach ($namespaces as $namespace => $relpath) {
-        $map[$method][$namespace] = $prefix . $path . '/' . $relpath;
+        $map[$method][$namespace] = $path . '/' . $relpath;
+        $cmap[$method][$namespace] = $prefix . $path . '/' . $relpath;
 
         if ($register) {
           $loader = new SplClassLoader(
@@ -137,7 +143,7 @@ function autoloader_refresh_real($register = false, $log = null) {
     'name'        => 'drupal-site/' . variable_get('install_profile', "custom"),
     'type'        => 'drupal-site',
     'description' => sprintf("Automatically generated file for site '%s'.", variable_get('site_name', "Drupal")),
-    'autoload'    => $map,
+    'autoload'    => $cmap,
   );
 
   if (!empty($dependencies)) {
@@ -175,7 +181,7 @@ function autoloader_refresh_real($register = false, $log = null) {
 
   if (!empty($map['psr-0'])) {
     foreach ($map['psr-0'] as $namespace => $path) {
-      $data .= "\n\n\$loader = new SplClassLoader('$namespace', __DIR__ . '/../$path');";
+      $data .= "\n\n\$loader = new SplClassLoader('$namespace', DRUPAL_ROOT . '/$path');";
       // Tiny fix that will ensure the prefix separator for PEAR style
       // libraries if they are declared the same way as it is documented
       // at http://getcomposer.org/doc/04-schema.md#autoload
